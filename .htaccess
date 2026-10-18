@@ -1,0 +1,15 @@
+# Place this file in the php-backend root (next to config.php) if deploying to Apache.
+
+# Never serve .env, schema.sql, .md or composer files over HTTP.
+<FilesMatch "(^\.env|\.sql|\.md|composer\.(json|lock))$">
+  Require all denied
+</FilesMatch>
+
+# Block direct access to lib/ and vendor/ — no entry points of their own,
+# everything goes through api/*.php which requires lib/bootstrap.php.
+<IfModule mod_alias.c>
+  RedirectMatch 403 /(lib|vendor)/
+</IfModule>
+
+# Allow the api/ and uploads/ folders to be reached normally.
+Options -Indexes
