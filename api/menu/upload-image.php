@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../../lib/bootstrap.php';
+require_once __DIR__ . '/../../lib/menu_images.php';
 require_method('POST');
 require_role(['staff', 'admin']);
 
@@ -33,7 +34,11 @@ if (!move_uploaded_file($file['tmp_name'], $destPath)) {
     json_error('Could not save uploaded file.', 500);
 }
 
-$baseUrl = rtrim(config('UPLOADS_BASE_URL', ''), '/');
-$publicUrl = $baseUrl !== '' ? "$baseUrl/$filename" : "/uploads/menu-images/$filename";
+// Keep a second copy inside the database so the photo can never be lost with the folder.
+menu_image_save_to_db($filename, $mime, (string)file_get_contents($destPath));
+
+// The app stores `url` as the item's image_url; menu endpoints turn the file name into the
+// public URL of whichever server is answering, so it keeps working after IP / host changes.
+$publicUrl = menu_image_public_url($filename);
 
 json_out(['url' => $publicUrl], 201);

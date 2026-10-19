@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/menu_helpers.php';
+require_once __DIR__ . '/../../lib/menu_images.php';
 require_method('POST');
 require_role(['staff', 'admin']);
 
@@ -21,7 +22,7 @@ $stmt->execute([
     'price' => $price,
     'category' => $category,
     'emoji' => (string)($body['emoji'] ?? ''),
-    'image_url' => $body['image_url'] ?? null,
+    'image_url' => menu_image_filename(isset($body['image_url']) && is_string($body['image_url']) ? $body['image_url'] : null),
     'available' => !empty($body['available']) ? 1 : 0,
 ]);
 

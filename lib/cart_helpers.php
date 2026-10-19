@@ -15,7 +15,18 @@ function cart_items_for_user(string $userId): array
         return [];
     }
     $items = json_decode($json, true);
-    return is_array($items) ? $items : [];
+    if (!is_array($items)) {
+        return [];
+    }
+    // Saved carts may hold an old photo URL (e.g. a previous LAN IP) — point them at this server.
+    require_once __DIR__ . '/menu_images.php';
+    foreach ($items as &$line) {
+        if (is_array($line) && !empty($line['image_url']) && is_string($line['image_url'])) {
+            $line['image_url'] = menu_image_public_url($line['image_url']);
+        }
+    }
+    unset($line);
+    return $items;
 }
 
 /** Validates what the app sends and keeps only the known cart-line fields. 400s if the cart is over the limit. */

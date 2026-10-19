@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/menu_helpers.php';
+require_once __DIR__ . '/../../lib/menu_images.php';
 require_method('POST');
 require_role(['staff', 'admin']);
 
@@ -13,7 +14,9 @@ $params = ['id' => $id];
 foreach (['name', 'description', 'category', 'emoji', 'image_url'] as $key) {
     if (array_key_exists($key, $body)) {
         $fields[] = "$key = :$key";
-        $params[$key] = $body[$key];
+        $params[$key] = $key === 'image_url'
+            ? menu_image_filename(is_string($body[$key]) ? $body[$key] : null) // store the file name only
+            : $body[$key];
     }
 }
 if (array_key_exists('price', $body)) {
