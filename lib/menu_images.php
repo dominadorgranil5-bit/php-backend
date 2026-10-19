@@ -84,6 +84,28 @@ function menu_image_filename(?string $value): ?string
     if (preg_match('~(?:menu-images/|[?&]f=)(' . MENU_IMAGE_NAME_PATTERN . ')(?:[?&#]|$)~i', $value, $m)) {
         return $m[1];
     }
+
+    // Legacy rows written by older builds: a full uploads/ URL that the old
+    // image_url column (varchar(80)) cut short — the stray space after the
+    // scheme plus the missing last letter, e.g. ".../1792310151-0ca806b3495e.jp".
+    // Pull the name out anyway and grow the truncated extension back to a real one.
+    if (preg_match('~(?:menu-images/|[?&]f=)([A-Za-z0-9][A-Za-z0-9._-]*)~i', $value, $m)) {
+        $candidate = str_replace(' ', '', $m[1]);
+        $ext = strtolower(pathinfo($candidate, PATHINFO_EXTENSION));
+        if ($ext !== '') {
+            $stem = substr($candidate, 0, -strlen($ext) - 1);
+            foreach (['jpg', 'png', 'webp', 'gif'] as $full) {
+                if (str_starts_with($full, $ext)) {
+                    $candidate = $stem . '.' . $full;
+                    break;
+                }
+            }
+        }
+        if (preg_match('~^' . MENU_IMAGE_NAME_PATTERN . '$~i', $candidate)) {
+            return $candidate;
+        }
+    }
+
     return $value;
 }
 
