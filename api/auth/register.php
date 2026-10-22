@@ -21,7 +21,7 @@ if (!preg_match('/^\d{11}$/', $phone)) {
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     json_error('Invalid email address.', 400);
 }
-require_valid_password($password);
+require_strong_password($password); // customers: length + uppercase + lowercase + number
 
 $pdo = db();
 

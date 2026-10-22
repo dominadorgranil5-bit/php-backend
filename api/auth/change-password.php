@@ -15,7 +15,13 @@ if (empty($user['must_change_password'])) {
 }
 
 $newPassword = require_field(json_body(), 'new_password');
-require_valid_password($newPassword);
+// Riders chose their own password here, so they get uppercase + lowercase + number;
+// staff keep the simple length-only rule.
+if (($user['role'] ?? '') === 'staff') {
+    require_valid_password($newPassword);
+} else {
+    require_strong_password($newPassword);
+}
 
 $pdo = db();
 $stmt = $pdo->prepare('SELECT password_hash FROM users WHERE id = :id');

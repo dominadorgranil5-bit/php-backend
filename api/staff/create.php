@@ -24,9 +24,14 @@ $phone = require_valid_mobile($phone);
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     json_error('Invalid email address.', 400);
 }
-require_valid_password($password);
 if (!in_array($role, ['staff', 'admin', 'rider'], true)) {
     json_error('Role must be "staff", "admin" or "rider".', 400);
+}
+// Admin and rider accounts need uppercase + lowercase + number; staff keep the simple rule.
+if ($role === 'staff') {
+    require_valid_password($password);
+} else {
+    require_strong_password($password);
 }
 
 $pdo = db();

@@ -10,7 +10,7 @@ $email = strtolower(trim(require_field($body, 'email')));
 $code = preg_replace('/\D/', '', require_field($body, 'code'));
 $newPassword = require_field($body, 'new_password');
 
-require_valid_password($newPassword);
+require_strong_password($newPassword); // customers: length + uppercase + lowercase + number
 
 $row = otp_verify($email, 'reset', $code);
 
