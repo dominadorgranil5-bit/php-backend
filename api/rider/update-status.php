@@ -1,8 +1,10 @@
 <?php
 /**
  * POST {id, status} — rider moves THEIR order one step forward:
- *   ready → picked_up → out_for_delivery → delivered
- * (pending → preparing → ready is done by staff; cancelled is done by staff/admin.)
+ *   picked_up → out_for_delivery → delivered
+ * (accepting already sets picked_up; ready → picked_up is kept only for orders a rider
+ *  claimed before that rule. pending → preparing → ready is done by staff, cancelled by
+ *  staff/admin.)
  */
 require_once __DIR__ . '/../../lib/bootstrap.php';
 require_method('POST');

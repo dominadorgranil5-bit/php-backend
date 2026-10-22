@@ -1,5 +1,10 @@
 <?php
-/** POST {id} — "Accept Delivery". Atomic, so two riders can't claim the same order. */
+/**
+ * POST {id} — "Accept Delivery". Atomic, so two riders can't claim the same order.
+ * Only orders staff has marked Ready to Pick Up are claimable, and accepting puts the
+ * order straight into the delivery leg (picked_up): the customer flips to
+ * "Out for Delivery" from this moment, and the rider's next tap is To Deliver.
+ */
 require_once __DIR__ . '/../../lib/bootstrap.php';
 require_method('POST');
 $rider = require_role(['rider']);
@@ -7,9 +12,10 @@ $id = require_field(json_body(), 'id');
 $pdo = db();
 
 $stmt = $pdo->prepare(
-    "UPDATE orders SET rider_id = :rid, rider_accepted_at = NOW()
+    "UPDATE orders SET rider_id = :rid, rider_accepted_at = NOW(),
+            status = 'picked_up', picked_up_at = NOW()
      WHERE id = :id AND order_type = 'delivery' AND rider_id IS NULL
-       AND status IN ('preparing','ready')
+       AND status = 'ready'
        AND (payment_method != 'gcash' OR payment_status = 'paid')"
 );
 $stmt->execute(['rid' => $rider['id'], 'id' => $id]);
