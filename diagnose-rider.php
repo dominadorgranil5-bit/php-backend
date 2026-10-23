@@ -41,8 +41,15 @@ $n = $pdo->query(
     "SELECT COUNT(*) FROM orders o JOIN users u ON u.id = o.customer_id
      WHERE o.order_type='delivery' AND o.status != 'payment_failed'
        AND (o.payment_method != 'gcash' OR o.payment_status='paid')
-       AND o.rider_id IS NULL AND o.status IN ('preparing','ready')"
+       AND o.rider_id IS NULL AND o.status = 'ready'"
 )->fetchColumn();
 echo "$n order(s)\n";
-echo "\nPaalala: lalabas lang sa Rider ang delivery order kapag 'preparing' o 'ready' na (i-Accept muna ng staff),\n"
-   . "walang rider pa, at kung GCash ay bayad na.\n";
+
+// rider_id kailangang CHAR(36): users.id ay 36-char UUID, at tahimik na tinitruncata ng MySQL
+// ang mas maikling column -> nawawala ang order sa dashboard ng rider.
+$rid = $pdo->query("SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='orders' AND column_name='rider_id'")->fetchColumn();
+echo "\n== 5. orders.rider_id ==\n";
+echo "char(" . (int)$rid . ") " . ((int)$rid >= 36 ? "OK\n" : "MAIKLI -> patakbuhin ang migrate-rider.php (ma-tru-truncate ang rider id!)\n");
+
+echo "\nPaalala: lalabas lang sa Rider ang delivery order kapag 'ready' na (i-Accept muna ng staff\n"
+   . "hanggang 'Ready to Pick Up'), walang rider pa, at kung GCash ay bayad na.\n";

@@ -16,7 +16,7 @@ function col_info(PDO $pdo, string $table, string $col): ?array
     // information_schema (not SHOW COLUMNS ... LIKE): MariaDB can't bind parameters in SHOW
     // statements when native prepares are on, which lib/db.php uses.
     $s = $pdo->prepare(
-        'SELECT COLUMN_TYPE AS `Type` FROM information_schema.columns
+        'SELECT COLUMN_TYPE AS `Type`, CHARACTER_MAXIMUM_LENGTH AS `len` FROM information_schema.columns
          WHERE table_schema = DATABASE() AND table_name = :t AND column_name = :c'
     );
     $s->execute(['t' => $table, 'c' => $col]);
@@ -49,8 +49,25 @@ $cols = [
     'picked_up_at'      => 'DATETIME NULL',
     'delivered_at'      => 'DATETIME NULL',
 ];
+// Columns that store a users.id — that id is a 36-char UUID, and MySQL TRUNCATES silently
+// when the column is too short (it never errors). An early copy of this migration created
+// orders.rider_id as CHAR(11), so every accepted delivery stored only the first 11 chars of
+// the rider's id: the order then vanished from that rider's dashboard (rider_id = :rid no
+// longer matched) and api/rider/update-status.php rejected them with
+// "This order is assigned to another rider." Widening the column repairs the definition.
+const UUID_COLS = ['rider_id'];
+
 foreach ($cols as $name => $def) {
-    if (col_info($pdo, 'orders', $name)) { echo "Already up to date — orders.$name.\n"; continue; }
+    $existing = col_info($pdo, 'orders', $name);
+    if ($existing) {
+        if (in_array($name, UUID_COLS, true) && (int)$existing['len'] < 36) {
+            $pdo->exec("ALTER TABLE orders MODIFY COLUMN `$name` CHAR(36) NULL");
+            echo "FIXED — orders.$name was {$existing['Type']} (too short for a UUID, so MySQL truncated every accepted order's rider); now CHAR(36).\n";
+            continue;
+        }
+        echo "Already up to date — orders.$name.\n";
+        continue;
+    }
     $pdo->exec("ALTER TABLE orders ADD COLUMN `$name` $def");
     echo "Done — added orders.$name.\n";
 }
