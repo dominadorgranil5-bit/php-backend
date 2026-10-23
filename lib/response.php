@@ -32,12 +32,24 @@ function require_method(string $method): void
     }
 }
 
+/** Labels for the fields a person actually types, so a missing-value error reads like a sentence. */
+const FIELD_LABELS = [
+    'email' => 'email address',
+    'password' => 'password',
+    'new_password' => 'new password',
+    'code' => 'verification code',
+    'name' => 'name',
+    'phone' => 'mobile number',
+];
+
 /** Pulls a required string field out of an array, trims it, 400s if missing/empty. */
 function require_field(array $data, string $key): string
 {
     $value = trim((string)($data[$key] ?? ''));
     if ($value === '') {
-        json_error("Missing required field: $key", 400);
+        // Typed fields get "Please enter your email address."; internal ids keep the plain label.
+        $label = FIELD_LABELS[$key] ?? null;
+        json_error($label !== null ? "Please enter your {$label}." : "Missing required field: {$key}", 400);
     }
     return $value;
 }
