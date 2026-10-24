@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   email         VARCHAR(190)  NOT NULL,
   phone         VARCHAR(30)   NOT NULL DEFAULT '',
   password_hash VARCHAR(255)  NOT NULL,
-  role          ENUM('customer','staff','admin') NOT NULL DEFAULT 'customer',
+  role          ENUM('customer','staff','admin','rider') NOT NULL DEFAULT 'customer',
   is_active     TINYINT(1)    NOT NULL DEFAULT 1,
   created_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_users_email (email)
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS order_item_options (
 CREATE TABLE IF NOT EXISTS orders (
   id                  CHAR(36)      NOT NULL PRIMARY KEY,
   customer_id         CHAR(36)      NOT NULL,
-  status              ENUM('pending','preparing','ready','completed','cancelled') NOT NULL DEFAULT 'pending',
+  status              ENUM('pending','preparing','ready','completed','cancelled','picked_up','out_for_delivery','delivered') NOT NULL DEFAULT 'pending',
   order_type          ENUM('pickup','delivery','dinein') NOT NULL DEFAULT 'delivery',
   address             VARCHAR(500)  NOT NULL DEFAULT '',
   notes               TEXT          NULL,
@@ -128,6 +128,15 @@ CREATE TABLE IF NOT EXISTS orders (
   payment_reference   VARCHAR(190)  NULL,
   cash_received       DECIMAL(10,2) NULL,
   payment_status      ENUM('unpaid','paid') NOT NULL DEFAULT 'unpaid',
+  order_source        ENUM('online','pos') NOT NULL DEFAULT 'online',
+  contact_number      VARCHAR(30)   NOT NULL DEFAULT '',
+  customer_name       VARCHAR(100)  NOT NULL DEFAULT '',
+  rider_id            CHAR(36)      NULL,
+  delivery_fee        DECIMAL(10,2) NULL,
+  distance_km         DECIMAL(6,2)  NULL,
+  rider_accepted_at   DATETIME      NULL,
+  picked_up_at        DATETIME      NULL,
+  delivered_at        DATETIME      NULL,
   receipt_requested_at DATETIME     NULL,
   receipt_printed_at  DATETIME     NULL,
   paymongo_source_id  VARCHAR(190)  NULL,
@@ -139,6 +148,7 @@ CREATE TABLE IF NOT EXISTS orders (
   KEY idx_orders_updated (updated_at),
   KEY idx_orders_source (paymongo_source_id),
   KEY idx_orders_intent (paymongo_payment_intent_id),
+  KEY idx_orders_rider (rider_id, status),
   CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -204,7 +214,7 @@ ON DUPLICATE KEY UPDATE email = email;
 CREATE TABLE IF NOT EXISTS email_otps (
   id                    CHAR(36)     NOT NULL PRIMARY KEY,
   email                 VARCHAR(190) NOT NULL,
-  purpose               ENUM('register','reset') NOT NULL,
+  purpose               ENUM('register','reset','login') NOT NULL,
   code_hash             VARCHAR(255) NOT NULL,
   pending_name          VARCHAR(150) NULL,
   pending_phone         VARCHAR(30)  NULL,

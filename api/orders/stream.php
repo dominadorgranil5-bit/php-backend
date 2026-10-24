@@ -9,8 +9,9 @@
  */
 require_once __DIR__ . '/../../lib/bootstrap.php';
 require_method('GET');
-$user = require_role(['customer', 'staff', 'admin']);
+$user = require_role(['customer', 'staff', 'admin', 'rider']);
 $customerId = $user['role'] === 'customer' ? $user['id'] : null;
+$riderId = $user['role'] === 'rider' ? $user['id'] : null;
 
 set_time_limit(0);
 ignore_user_abort(true);
@@ -29,8 +30,22 @@ while (ob_get_level() > 0) {
  * order, and updated_at changes on every status/payment update — together
  * they catch every kind of change without shipping the whole order list.
  */
-function orders_fingerprint(?string $customerId = null): string
+function orders_fingerprint(?string $customerId = null, ?string $riderId = null): string
 {
+    if ($riderId !== null) {
+        // Rider: delivery orders still claimable (Ready to Pick Up, no rider yet) plus their own,
+        // so a new Ready order or a staff cancel shows up on the rider's screen at once.
+        $stmt = db()->prepare(
+            "SELECT id, status, rider_id, updated_at FROM orders
+             WHERE order_type = 'delivery' AND status != 'payment_failed'
+               AND (payment_method != 'gcash' OR payment_status = 'paid')
+               AND ((rider_id IS NULL AND status IN ('ready','cancelled')) OR rider_id = :rid)
+             ORDER BY id"
+        );
+        $stmt->execute(['rid' => $riderId]);
+        return hash('sha256', serialize($stmt->fetchAll()));
+    }
+
     if ($customerId !== null) {
         $stmt = db()->prepare(
             'SELECT id, status, payment_status, updated_at
@@ -51,7 +66,7 @@ function orders_fingerprint(?string $customerId = null): string
     return $row['cnt'] . ':' . $row['latest'] . ':' . $row['sig'];
 }
 
-$last = orders_fingerprint($customerId); // don't fire immediately on connect, only on real changes
+$last = orders_fingerprint($customerId, $riderId); // don't fire immediately on connect, only on real changes
 $start = time();
 
 // Each connection stays open ~55s then closes cleanly; the browser's
@@ -62,7 +77,7 @@ while (time() - $start < 55) {
         break;
     }
 
-    $fingerprint = orders_fingerprint($customerId);
+    $fingerprint = orders_fingerprint($customerId, $riderId);
     if ($fingerprint !== $last) {
         $last = $fingerprint;
         echo "event: orders-changed\n";

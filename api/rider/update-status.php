@@ -14,8 +14,14 @@ $body = json_body();
 $id = require_field($body, 'id');
 $target = require_field($body, 'status');
 
-$NEXT = ['ready' => 'picked_up', 'picked_up' => 'out_for_delivery', 'out_for_delivery' => 'delivered'];
-if (!in_array($target, $NEXT, true)) {
+// "Arrived at the location" is the rider's final tap: ready/picked_up/out_for_delivery -> delivered.
+// (picked_up -> out_for_delivery and ready -> picked_up stay allowed for older app versions.)
+$ALLOWED = [
+    'ready' => ['picked_up', 'delivered'],
+    'picked_up' => ['out_for_delivery', 'delivered'],
+    'out_for_delivery' => ['delivered'],
+];
+if (!in_array($target, ['picked_up', 'out_for_delivery', 'delivered'], true)) {
     json_error('Invalid status for a rider.', 400);
 }
 
@@ -27,7 +33,7 @@ if (!$o || $o['order_type'] !== 'delivery') json_error('Order not found.', 404);
 if ($o['rider_id'] !== $rider['id']) json_error('This order is assigned to another rider.', 403);
 if ($o['status'] === $target) json_out(['ok' => true, 'already' => true]); // double-tap safe
 if ($o['status'] === 'cancelled') json_error('This order was cancelled.', 409);
-if (($NEXT[$o['status']] ?? null) !== $target) {
+if (!in_array($target, $ALLOWED[$o['status']] ?? [], true)) {
     json_error($o['status'] === 'preparing'
         ? 'The kitchen is still preparing this order.'
         : 'That status change is not allowed from the current status.', 409);

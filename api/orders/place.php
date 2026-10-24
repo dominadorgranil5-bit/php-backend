@@ -17,6 +17,10 @@ $items = $body['items'] ?? [];
 $walkInPaid = !empty($body['walk_in_paid']);
 // Walk-in cash: how much the customer handed over (the receipt shows Cash and Change).
 $cashReceived = isset($body['cash_received']) ? round((float)$body['cash_received'], 2) : null;
+// POS delivery: who the rider will call (walk-in customers have no account, so staff
+// records the name/contact at the counter). Online orders use the account's own details.
+$customerName = trim((string)($body['customer_name'] ?? ''));
+$contactNumber = trim((string)($body['contact_number'] ?? ''));
 if ($walkInPaid && !in_array($user['role'], ['staff', 'admin'], true)) {
     json_error('Forbidden', 403);
 }
@@ -34,6 +38,17 @@ if ($paymentMethod === 'cash' && !$walkInPaid) {
 }
 if ($orderType === 'delivery' && trim($address) === '') {
     json_error('Delivery address is required for delivery orders.', 400);
+}
+// POS delivery: the walk-in customer has no account behind the order, so staff must
+// record who the rider will call and hand the order to.
+if ($orderType === 'delivery' && $walkInPaid) {
+    if ($customerName === '') {
+        json_error('Customer name is required for delivery orders.', 400);
+    }
+    $contactDigits = preg_replace('/\D/', '', $contactNumber);
+    if (!preg_match('/^[0-9+\-() ]+$/', $contactNumber) || strlen($contactDigits) < 7 || strlen($contactDigits) > 15) {
+        json_error('A valid contact number is required for delivery orders.', 400);
+    }
 }
 // Reservations (customer dine-in) must carry the date & time in the notes. Staff walk-in dine-in is exempt.
 if ($orderType === 'dinein' && !$walkInPaid && trim($notes) === '') {
@@ -83,10 +98,18 @@ try {
     $paymentReference = $walkInPaid ? ($paymentMethod === 'gcash' ? 'walk-in-gcash' : 'walk-in-cash') : null;
     $initialStatus = 'pending';
     $cashToStore = ($walkInPaid && $paymentMethod === 'cash' && $cashReceived !== null && $cashReceived >= $total) ? $cashReceived : null;
+    // Single source of truth for where the order came from — derived server-side, never
+    // trusted from the client. Online delivery snapshots the account's phone so the rider
+    // always has a valid number even if the customer later edits their profile.
+    $orderSource = $walkInPaid ? 'pos' : 'online';
+    $contactToStore = $orderType === 'delivery'
+        ? ($contactNumber !== '' ? $contactNumber : (string)$user['phone'])
+        : '';
+    $nameToStore = $customerName;
 
     $stmt = $pdo->prepare(
-        'INSERT INTO orders (id, customer_id, status, order_type, address, notes, total, payment_method, payment_status, payment_reference, cash_received)
-         VALUES (:id, :customer_id, :status, :order_type, :address, :notes, :total, :payment_method, :payment_status, :payment_reference, :cash_received)'
+        'INSERT INTO orders (id, customer_id, status, order_type, address, notes, total, payment_method, payment_status, payment_reference, cash_received, order_source, contact_number, customer_name)
+         VALUES (:id, :customer_id, :status, :order_type, :address, :notes, :total, :payment_method, :payment_status, :payment_reference, :cash_received, :order_source, :contact_number, :customer_name)'
     );
     $stmt->execute([
         'id' => $orderId,
@@ -100,6 +123,9 @@ try {
         'payment_status' => $paymentStatus,
         'payment_reference' => $paymentReference,
         'cash_received' => $cashToStore,
+        'order_source' => $orderSource,
+        'contact_number' => $contactToStore,
+        'customer_name' => $nameToStore,
     ]);
 
     $itemStmt = $pdo->prepare(
@@ -131,7 +157,10 @@ json_out([
     'customer_id' => $user['id'],
     'status' => $initialStatus,
     'order_type' => $orderType,
+    'order_source' => $orderSource,
     'address' => $address,
+    'customer_name' => $nameToStore,
+    'contact_number' => $contactToStore,
     'notes' => $notes,
     'total' => $total,
     'payment_method' => $paymentMethod,

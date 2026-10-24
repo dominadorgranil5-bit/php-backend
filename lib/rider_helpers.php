@@ -10,8 +10,11 @@ const RIDER_BASE_WHERE =
 /** Fetches orders (+ customer name/phone + line items) in the shape the Rider App expects. */
 function rider_fetch_orders(string $where, array $params, string $orderBy, int $limit = 100): array
 {
+    // account_* aliases: o.* already carries the order's own customer_name /
+    // contact_number (POS-captured), so the joined account columns must not
+    // collide with them — PDO would silently overwrite one with the other.
     $stmt = db()->prepare(
-        "SELECT o.*, u.name AS customer_name, u.phone AS customer_phone
+        "SELECT o.*, u.name AS account_name, u.phone AS account_phone
          FROM orders o JOIN users u ON u.id = o.customer_id
          WHERE " . RIDER_BASE_WHERE . " AND $where
          ORDER BY $orderBy LIMIT $limit"
@@ -23,8 +26,13 @@ function rider_fetch_orders(string $where, array $params, string $orderBy, int $
         $r['total'] = (float)$r['total'];
         $r['delivery_fee'] = $r['delivery_fee'] !== null ? (float)$r['delivery_fee'] : null;
         $r['distance_km'] = $r['distance_km'] !== null ? (float)$r['distance_km'] : null;
-        $r['profiles'] = ['name' => $r['customer_name'], 'phone' => $r['customer_phone']];
-        unset($r['customer_name'], $r['customer_phone']);
+        // The customer the rider actually deals with: for POS deliveries that's the
+        // walk-in customer recorded at the counter, not the staff account.
+        $r['profiles'] = [
+            'name' => ($r['customer_name'] ?? '') !== '' ? $r['customer_name'] : $r['account_name'],
+            'phone' => ($r['contact_number'] ?? '') !== '' ? $r['contact_number'] : $r['account_phone'],
+        ];
+        unset($r['account_name'], $r['account_phone']);
     }
     unset($r);
 

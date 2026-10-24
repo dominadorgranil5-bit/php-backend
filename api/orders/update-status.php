@@ -13,7 +13,7 @@ if (!in_array($status, $valid, true)) {
     json_error('Invalid status.', 400);
 }
 
-$stmt = db()->prepare('SELECT payment_method, payment_status, order_type FROM orders WHERE id = :id');
+$stmt = db()->prepare('SELECT payment_method, payment_status, order_type, status, rider_id FROM orders WHERE id = :id');
 $stmt->execute(['id' => $id]);
 $order = $stmt->fetch();
 if (!$order) {
@@ -21,6 +21,15 @@ if (!$order) {
 }
 if ($order['payment_method'] === 'gcash' && $order['payment_status'] !== 'paid' && $status !== 'cancelled') {
     json_error('GCash orders can only be processed after PayMongo settlement and receipt delivery.', 409);
+}
+
+// Once a rider has the order (accepted / on the road / delivered) the rider owns it:
+// staff can no longer move it back, complete it or cancel it from the staff screen.
+if ($order['order_type'] === 'delivery' && in_array($order['status'], ['picked_up', 'out_for_delivery', 'delivered'], true)) {
+    json_error('This delivery is already with the rider and can only be updated by the rider.', 409);
+}
+if ($order['order_type'] !== 'delivery' && in_array($status, ['picked_up', 'out_for_delivery', 'delivered'], true)) {
+    json_error('Invalid status.', 400);
 }
 
 if ($status === 'completed' && $order['order_type'] === 'delivery') {
